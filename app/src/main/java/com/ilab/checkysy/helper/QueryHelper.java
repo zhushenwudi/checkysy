@@ -159,11 +159,13 @@ public class QueryHelper {
             if (result.size() > 0) {
                 customDate = sp.getString("customDate");
                 if (customDate != null) {
+                    Date newDate = null;
                     try {
-                        Date newDate = sdf.parse(customDate);
-                        startQueryCouldList(result, newDate);
-                    } catch (ParseException ignored) {
+                        newDate = sdf.parse(customDate);
+                    } catch (ParseException e) {
+                        e.printStackTrace();
                     }
+                    startQueryCouldList(result, newDate);
                 } else {
                     Date date = new Date();
                     //减去一天

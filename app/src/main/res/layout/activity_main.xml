@@ -48,6 +48,8 @@
             android:layout_height="match_parent"
             android:layout_margin="16dp"
             android:gravity="center"
+            android:digits="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+            android:maxLength="9"
             android:hint="输入查找摄像头序列号" />
 
         <LinearLayout

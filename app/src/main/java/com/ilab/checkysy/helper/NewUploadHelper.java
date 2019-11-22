@@ -62,6 +62,7 @@ public class NewUploadHelper extends AsyncTask<Void, Void, Void> {
     private String searchCamera;
     private SuccessEntyDao greenEntyDao;
     private SuccessPicEntyDao greenPicDao;
+    private SharedPreferencesUtils sp = SharedPreferencesUtils.init(context);
 
     public NewUploadHelper(Context context, int type, TextView tv, Handler mHandler, List<FileEntity> existFiles) {
         this.type = type;
@@ -89,7 +90,7 @@ public class NewUploadHelper extends AsyncTask<Void, Void, Void> {
         StringBuilder sb = new StringBuilder("初始化错误  ");
         try {
             //绑定Azure云账户
-            CloudStorageAccount account = CloudStorageAccount.parse(Constants.storageConnectionString3);
+            CloudStorageAccount account = CloudStorageAccount.parse(Constants.storageConnectionString2);
             //创建Blob本地客户端
             CloudBlobClient blobClient = account.createCloudBlobClient();
             ServiceProperties props = new ServiceProperties();
@@ -236,7 +237,7 @@ public class NewUploadHelper extends AsyncTask<Void, Void, Void> {
             if (errorCount.get() != 0) {
                 restartApp(2000);
             }
-            SharedPreferencesUtils.init(context).putString("savePic" + searchCamera, "ok");
+            sp.putString("savePic" + sp.getString("customDate") + searchCamera, "ok");
             Message msg = new Message();
             msg.what = Constants.UPLOADPIC_FINISH;
             mHandler.sendMessage(msg);
