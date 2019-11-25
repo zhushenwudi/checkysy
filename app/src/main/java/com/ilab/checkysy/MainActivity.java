@@ -22,6 +22,7 @@ import com.heima.easysp.SharedPreferencesUtils;
 import com.ilab.checkysy.cloud.EZCloudRecordFile;
 import com.ilab.checkysy.database.DayKeyToListValue;
 import com.ilab.checkysy.database.DayKeyToListValueDao;
+import com.ilab.checkysy.database.ErrorFile;
 import com.ilab.checkysy.database.ErrorFileDao;
 import com.ilab.checkysy.database.SkipEnty;
 import com.ilab.checkysy.database.SkipEntyDao;
@@ -36,6 +37,7 @@ import com.ilab.checkysy.helper.DownloadHelper;
 import com.ilab.checkysy.helper.NewUploadHelper;
 import com.ilab.checkysy.helper.QueryHelper;
 import com.ilab.checkysy.helper.TokenHelper;
+import com.ilab.checkysy.util.SFTPUtils;
 import com.ilab.checkysy.util.Util;
 import com.savvi.rangedatepicker.CalendarPickerView;
 import com.videogo.openapi.bean.resp.CloudPartInfoFile;
@@ -56,7 +58,8 @@ import butterknife.BindView;
 import butterknife.OnClick;
 
 import static com.ilab.checkysy.Constants.checkJson;
-import static com.ilab.checkysy.util.CrashHandler.restartApp;
+import static com.ilab.checkysy.util.Util.restartApp;
+import static com.ilab.checkysy.util.Util.writeToFile;
 
 public class MainActivity extends BaseActivity {
     @BindView(R.id.btn_quzhou)
@@ -97,7 +100,7 @@ public class MainActivity extends BaseActivity {
             switch (msg.what) {
                 case Constants.TOKEN_RESULT:
                     myLogE("--------登录错误，重启app--------");
-                    restartApp(2000);
+                    restartApp(MainActivity.this, 2000);
                     break;
                 case Constants.LOGIN_SUCCESS:
                     loginStatus = true;
@@ -156,7 +159,7 @@ public class MainActivity extends BaseActivity {
 
                         //准备启动下一次查询逻辑
                         Runnable runnable = () -> {
-                            queryHelper = new QueryHelper(sp.getString("currentCamera"), handler);
+                            queryHelper = new QueryHelper(sp.getString("currentCamera"), handler, MainActivity.this);
                             queryHelper.startQueryCould();
                         };
                         handler.postDelayed(runnable, 3000);
@@ -178,6 +181,26 @@ public class MainActivity extends BaseActivity {
                     tv_screen.setText("上传完毕，准备删除文件");
                     myLogE("上传完毕，准备删除文件");
                     cleanAll();
+                    break;
+                case 999:
+                    List<Date> dataList = (List<Date>) msg.obj;
+                    Bundle bundle = msg.getData();
+                    List<DayKeyToListValue> dayKeyToListValues = new Gson().fromJson(bundle.getString("dayKeyToListValues"), new TypeToken<List<DayKeyToListValue>>() {
+                    }.getType());
+                    //判断是否为手动删除数据库操作
+                    if (dayKeyToListValues.size() != 0) {
+                        sp.putBoolean("isworking", true);
+                        sp.putInt("projectId", msg.arg1);
+                        sp.putString("totalDate", new Gson().toJson(dataList));
+                        sp.putString("customDate", sdf.format(dataList.get(0)));
+                        sp.putString("currentCamera", searchCamera);
+                    } else {
+                        greenDayToListDao.deleteAll();
+                    }
+
+                    clean_greenDao();
+
+                    new DeleteFileThread(MainActivity.this, true, sp).start();
                     break;
             }
             return false;
@@ -225,17 +248,70 @@ public class MainActivity extends BaseActivity {
         sp.clear();
         if (!maps.isEmpty()) maps.clear();
 
-        clean_greenDao();
+        //TODO:保存数据库全部文件，并上传至服务器
 
-        //判断是否为手动删除数据库操作
-        if (dayKeyToListValues.size() != 0) {
-            sp.putBoolean("isworking", true);
-            sp.putInt("projectId", projectId);
-            sp.putString("totalDate", new Gson().toJson(list));
-            sp.putString("customDate", sdf.format(list.get(0)));
-            sp.putString("currentCamera", searchCamera);
+        //totalList:
+        //usefulList 为了使程序稳定进行，跳出视频检测有效性进行下一个行为，包含successList + dropList + (errorList.getCount > 3)，三者相加可以 达到 和总下载列表长度相同
+
+        //itemList:
+        //successList 为 成功上传 无任何阻碍的
+        //dropList 为 摄像头加密、视频时长超过30分钟
+        //errorList.getCount >= 3 则为无论如何都不能检测视频有效性通过的
+
+        //所以为了服务器端区分开，想要的数据，需要上传的列表，需要按照itemList分开统计上传。
+        List<ErrorFile> errorFileList = greenErrorDao.loadAll();
+        List<SkipEnty> skipEntyList = greenSkipEntyDao.loadAll();
+
+        StringBuilder errorStringBuilder = new StringBuilder();
+        for (ErrorFile errorFile : errorFileList) {
+            if (errorFile.getCount() >= 3) {
+                errorStringBuilder.append(errorFile.getFileName()).append("\n");
+            }
         }
-        new DeleteFileThread(true, sp).start();
+
+        StringBuilder skipStringBuilder = new StringBuilder();
+        for (SkipEnty skipEnty : skipEntyList) {
+            skipStringBuilder.append(skipEnty.getFileName()).append("\n");
+        }
+
+        final int id = projectId;
+
+        new Thread(() -> {
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.CHINA);
+            String now = sdf.format(new Date());
+            SFTPUtils sftp = new SFTPUtils("40.73.40.129", "gr.zhu", "o1uNF7f5m0", 50022);
+            if (!"".equals(errorStringBuilder.toString().trim())) {
+                myLogE("开始上传...执行三次未成功的视频");
+                String errorPath = writeToFile(this, "error", errorStringBuilder.toString());
+                String remote_errorPath = "/hub.devops.intelab.cloud/a_zhuguirui/" + now + "/error";
+                sftp.connect();
+                if (!sftp.isDirExist(remote_errorPath)) {
+                    sftp.mkdirs(remote_errorPath);
+                }
+                sftp.bacthUploadFile(remote_errorPath, errorPath, false);
+                sftp.disconnect();
+            }
+            if (!"".equals(skipStringBuilder.toString().trim())) {
+                myLogE("开始上传...摄像头加密或者超过30分钟的视频");
+                String skipPath = writeToFile(this, "skip", skipStringBuilder.toString());
+                String remote_skipPath = "/hub.devops.intelab.cloud/a_zhuguirui/" + now + "/skip";
+                sftp.connect();
+                if (!sftp.isDirExist(remote_skipPath)) {
+                    sftp.mkdirs(remote_skipPath);
+                }
+                sftp.bacthUploadFile(remote_skipPath, skipPath, false);
+                sftp.disconnect();
+            }
+
+            Message message = Message.obtain();
+            message.what = 999;
+            message.obj = list;
+            message.arg1 = id;
+            Bundle bundle = new Bundle();
+            bundle.putString("dayKeyToListValues", new Gson().toJson(dayKeyToListValues));
+            message.setData(bundle);
+            handler.sendMessage(message);
+        }).start();
     }
 
     private void distributeTask() {
@@ -427,7 +503,7 @@ public class MainActivity extends BaseActivity {
                             new Timer().schedule(new TimerTask() {
                                 @Override
                                 public void run() {
-                                    queryHelper = new QueryHelper(searchCamera, handler);
+                                    queryHelper = new QueryHelper(searchCamera, handler, MainActivity.this);
                                     queryHelper.startQueryCould();
                                 }
                             }, 500);
@@ -534,7 +610,7 @@ public class MainActivity extends BaseActivity {
                     new NewUploadHelper(this, 1, tv_screen, handler, uploadVideoList).execute();
                 } else {
                     m.obj = "仍存在无效视频，准备重启并重新下载";
-                    restartApp(2000);
+                    restartApp(this, 2000);
                     myLogE("重启中...");
                 }
                 handler.sendMessage(m);
@@ -548,7 +624,7 @@ public class MainActivity extends BaseActivity {
                 //删除上个任务最后一个文件修改时间以前的视频
                 Util.removeFileByTime(sp.getLong("lastMovieTime"), Constants.path);
                 greenSkipEntyDao.deleteAll();
-                restartApp(2000);
+                restartApp(this, 2000);
             }).start();
         } else {
             //说明还没有完全下载完，开启下载任务

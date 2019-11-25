@@ -32,8 +32,8 @@ public class Constants {
     static final int STORAGE_PERMISSION = 129;
     //zhushenwudi的constants
     static final int SHOW_STRING = 333;
-    //static final String checkJson = "[\"C90843864\",\"D22710496\"]";
-    static final String checkJson = "[C90843864]";
+    static final String checkJson = "[\"C90843864\",\"D22710496\"]";
+    //static final String checkJson = "[C90843864]";
     public static String mAppKeyQuzhou = "a287e05ace374c3587e051db8cd4be82";
     public static String mAppSecretQuzhou = "f01b61048a1170c4d158da3752e4378d";
     public static String mAppKeyZheda = "102574957ca44d8493e6c1df6aaa1b14";

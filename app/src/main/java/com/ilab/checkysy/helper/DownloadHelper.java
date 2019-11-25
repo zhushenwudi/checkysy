@@ -25,7 +25,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.ilab.checkysy.util.CrashHandler.restartApp;
+import static com.ilab.checkysy.util.Util.restartApp;
 
 public class DownloadHelper {
     private static AtomicInteger downloadSuccessCount = new AtomicInteger(0);
@@ -55,7 +55,7 @@ public class DownloadHelper {
                 queue.put(entry.getValue());
             } catch (Exception e) {
                 e.printStackTrace();
-                restartApp(2000);
+                restartApp(mContext, 2000);
             }
         }
         NetSpeed netSpeed = new NetSpeed();
@@ -87,13 +87,13 @@ public class DownloadHelper {
                     }
                     if ((speed / 4) < 50) {
                         Log.e("aaa", "流量已停止");
-                        restartApp(2000);
+                        restartApp(mContext, 2000);
                     } else {
                         Log.e("aaa", "定时器启动------网络崩坏中");
                         restartCount++;
                         //10分钟时间，下载数没有变化，则重启重试
                         if (restartCount > (8 / Constants.DELAYTIME)) {
-                            restartApp(2000);
+                            restartApp(mContext, 2000);
                             Log.e("aaa", "重启手机中...");
                         }
                     }
@@ -102,7 +102,7 @@ public class DownloadHelper {
         } catch (Exception e) {
             Log.e("aaa", "------------定时器异常------------");
             e.printStackTrace();
-            restartApp(2000);
+            restartApp(mContext, 2000);
         }
         //创建下载的文件夹
         File path = new File(Constants.path);
@@ -127,7 +127,7 @@ public class DownloadHelper {
                 startDownAnimation(queue.take());
             } catch (Exception e) {
                 e.printStackTrace();
-                restartApp(2000);
+                restartApp(mContext, 2000);
             }
         }
     }
@@ -197,7 +197,7 @@ public class DownloadHelper {
                         }
                     } catch (Exception e) {
                         e.printStackTrace();
-                        restartApp(2000);
+                        restartApp(mContext, 2000);
                     }
                 } else {
                     downloadFailCount.getAndIncrement();
@@ -217,6 +217,6 @@ public class DownloadHelper {
 
     private void testReboot() {
         if (downloadSuccessCount.get() + downloadFailCount.get() >= eZCMap.size())
-            restartApp(7000);
+            restartApp(mContext, 2000);
     }
 }

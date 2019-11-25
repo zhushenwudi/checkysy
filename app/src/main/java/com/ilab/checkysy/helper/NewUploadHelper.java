@@ -46,7 +46,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.ilab.checkysy.util.CrashHandler.restartApp;
+import static com.ilab.checkysy.util.Util.restartApp;
 
 @SuppressLint("StaticFieldLeak")
 public class NewUploadHelper extends AsyncTask<Void, Void, Void> {
@@ -217,7 +217,7 @@ public class NewUploadHelper extends AsyncTask<Void, Void, Void> {
             }
         } else {
             Log.e("aaa", "初始化失败！");
-            restartApp(2000);
+            restartApp(context, 2000);
         }
         return null;
     }
@@ -228,14 +228,14 @@ public class NewUploadHelper extends AsyncTask<Void, Void, Void> {
         tv.setText("上传完成，错误数目:" + errorCount + "个");
         if (type == 1) {
             if (errorCount.get() != 0) {
-                restartApp(2000);
+                restartApp(context, 2000);
             }
             Message msg = new Message();
             msg.what = Constants.UPLOADVideo_FINISH;
             mHandler.sendMessage(msg);
         } else if (type == 2) {
             if (errorCount.get() != 0) {
-                restartApp(2000);
+                restartApp(context, 2000);
             }
             sp.putString("savePic" + sp.getString("customDate") + searchCamera, "ok");
             Message msg = new Message();
@@ -329,7 +329,7 @@ public class NewUploadHelper extends AsyncTask<Void, Void, Void> {
                     fileInputStream.close();
                 } catch (Exception e) {
                     e.printStackTrace();
-                    restartApp(2000);
+                    restartApp(context, 2000);
                 }
             }
         }

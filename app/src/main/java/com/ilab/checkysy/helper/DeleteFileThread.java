@@ -1,6 +1,7 @@
 package com.ilab.checkysy.helper;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.util.Log;
 
 import com.heima.easysp.SharedPreferencesUtils;
@@ -13,15 +14,15 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 
-import static com.ilab.checkysy.util.CrashHandler.restartApp;
-
 public class DeleteFileThread extends Thread {
     private boolean restart;//是否重启
     private SharedPreferencesUtils sp;
+    private Context context;
 
-    public DeleteFileThread(boolean shouldRestart, SharedPreferencesUtils sp) {
+    public DeleteFileThread(Context context, boolean shouldRestart, SharedPreferencesUtils sp) {
         restart = shouldRestart;
         this.sp = sp;
+        this.context = context;
     }
 
     @Override
@@ -46,7 +47,7 @@ public class DeleteFileThread extends Thread {
         Log.e("aaa", "------------删除全部文件结束------------");
         if (restart) {
             Log.e("aaa", "------------删除完毕重启，准备下一个任务------------");
-            restartApp(2000);
+            Util.restartApp(context, 2000);
         }
     }
 }

@@ -33,7 +33,7 @@ public class App extends Application {
         EZOpenSDK.enableP2P(true);
         sp = SharedPreferencesUtils.init(this);
 
-        CrashHandler.getInstance().init(this);
+        CrashHandler.getInstance().init(getApplicationContext());
     }
 
     public SharedPreferencesUtils getSp() {

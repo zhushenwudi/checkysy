@@ -1,121 +1,139 @@
 package com.ilab.checkysy.util;
 
-import android.app.AlarmManager;
-import android.app.PendingIntent;
 import android.content.Context;
-import android.content.Intent;
+import android.os.Build;
+import android.os.Environment;
 import android.os.Looper;
 import android.util.Log;
 import android.widget.Toast;
 
-import com.ilab.checkysy.MainActivity;
+import com.ilab.checkysy.R;
 
-import java.text.DateFormat;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.io.Writer;
 import java.text.SimpleDateFormat;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Date;
+import java.util.Locale;
 
 public class CrashHandler implements Thread.UncaughtExceptionHandler {
-
-    public static final String TAG = "csdn";
-    private static String launcherActivityName;
-    private static Intent intent;
-    //CrashHandler实例
-    private static CrashHandler INSTANCE = new CrashHandler();
-    //程序的Context对象
-    private static Context mContext;
-    //系统默认的UncaughtException处理类
     private Thread.UncaughtExceptionHandler mDefaultHandler;
-    //用来存储设备信息和异常信息
-    private Map<String, String> infos = new HashMap<String, String>();
+    private static CrashHandler INSTANCE;
+    private Context mContext;
 
-    //用于格式化日期,作为日志文件名的一部分
-    private DateFormat formatter = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss");
-
-    /**
-     * 保证只有一个CrashHandler实例
-     */
     private CrashHandler() {
-
     }
 
-    /**
-     * 获取CrashHandler实例 ,单例模式
-     */
     public static CrashHandler getInstance() {
+        if (INSTANCE == null) {
+            synchronized (CrashHandler.class) {
+                if (INSTANCE == null) {
+                    INSTANCE = new CrashHandler();
+                }
+            }
+        }
+
         return INSTANCE;
     }
 
-    public static void restartApp(long delayTime) {
-        RxTimerUtil.getInstance().timer(delayTime, number -> {
-            Intent intent = new Intent(mContext, MainActivity.class);
-            PendingIntent restartIntent = PendingIntent.getActivity(mContext.getApplicationContext(), 0, intent, 0);
-            //退出程序
-            AlarmManager mgr = (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
-            mgr.set(AlarmManager.RTC, System.currentTimeMillis() + 1000, restartIntent); // 1秒钟后重启应用
+    public static String[] getCrashReportFiles(Context ctx) {
+        File filesDir = new File(getCrashFilePath(ctx));
+        String[] fileNames = filesDir.list();
+        int length = fileNames.length;
+        String[] filePaths = new String[length];
 
-            //结束进程之前可以把你程序的注销或者退出代码放在这段代码之前
-            android.os.Process.killProcess(android.os.Process.myPid());
-        });
+        for (int i = 0; i < length; ++i) {
+            filePaths[i] = getCrashFilePath(ctx) + fileNames[i];
+        }
+
+        return filePaths;
     }
 
-    /**
-     * 初始化
-     *
-     * @param context
-     */
-    public void init(Context context) {
-        mContext = context;
-        //获取系统默认的UncaughtException处理器
-        mDefaultHandler = Thread.getDefaultUncaughtExceptionHandler();
-        //设置该CrashHandler为程序的默认处理器
+    private static String getCrashFilePath(Context context) {
+        String path = null;
+
+        try {
+            path = Environment.getExternalStorageDirectory().getCanonicalPath() + "/" + context.getResources().getString(R.string.app_name) + "/Crash/";
+            File file = new File(path);
+            if (!file.exists()) {
+                file.mkdirs();
+            }
+        } catch (IOException var3) {
+            var3.printStackTrace();
+        }
+        return path;
+    }
+
+    public void init(Context ctx) {
+        this.mContext = ctx;
+        this.mDefaultHandler = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler(this);
     }
 
-    /**
-     * 自定义错误处理,收集错误信息 发送错误报告等操作均在此完成.
-     *
-     * @param ex
-     * @return true:如果处理了该异常信息;否则返回false.
-     */
-    private boolean handleException(Throwable ex) {
-        if (ex == null) {
-            return false;
-        }
-        //使用Toast来显示异常信息
-        new Thread() {
-            @Override
-            public void run() {
-                Looper.prepare();
-                Toast.makeText(mContext, "很抱歉,程序出现异常,即将退出.", Toast.LENGTH_LONG).show();
-                Looper.loop();
-            }
-        }.start();
-        //收集设备参数信息,并保存
-        Log.i("csdm", "---------------------崩溃保存上传成功的数据-----------------------");
-
-        return true;
-    }
-
-    /**
-     * 收集设备参数信息
-     *
-     * @param ctx
-     */
-    public void collectDeviceInfo(Context ctx) {
-
-    }
-
-    /**
-     * 当UncaughtException发生时会转入该函数来处理
-     */
-    @Override
     public void uncaughtException(Thread thread, Throwable ex) {
-        if (!handleException(ex) && mDefaultHandler != null) {
-            //如果用户没有处理则让系统默认的异常处理器来处理
-            mDefaultHandler.uncaughtException(thread, ex);
-        } else {
-            restartApp(5000);
+        this.handleException(ex);
+        if (this.mDefaultHandler != null) {
+            this.mDefaultHandler.uncaughtException(thread, ex);
         }
+
+    }
+
+    private void handleException(Throwable ex) {
+        if (ex == null) {
+            Log.w("CrashHandler", "handleException--- ex==null");
+        } else {
+            String msg = ex.getLocalizedMessage();
+            if (msg != null) {
+                this.saveCrashInfoToFile(ex);
+            }
+            //使用Toast来显示异常信息
+            new Thread() {
+                @Override
+                public void run() {
+                    Looper.prepare();
+                    Toast.makeText(mContext, "很抱歉,程序出现异常,即将退出.", Toast.LENGTH_LONG).show();
+                    Looper.loop();
+                }
+            }.start();
+        }
+    }
+
+    private void saveCrashInfoToFile(Throwable ex) {
+        Writer info = new StringWriter();
+        PrintWriter printWriter = new PrintWriter(info);
+        ex.printStackTrace(printWriter);
+
+        for (Throwable cause = ex.getCause(); cause != null; cause = cause.getCause()) {
+            cause.printStackTrace(printWriter);
+        }
+
+        String result = info.toString();
+        printWriter.close();
+        StringBuilder sb = new StringBuilder();
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA);
+        String now = sdf.format(new Date());
+        sb.append("TIME:").append(now);
+        sb.append("\nAPPLICATION_ID:").append("com.ilab.checkysy");
+        sb.append("\nVERSION_CODE:").append(1);
+        sb.append("\nVERSION_NAME:").append("1.0");
+        sb.append("\nBUILD_TYPE:").append("release");
+        sb.append("\nMODEL:").append(Build.MODEL);
+        sb.append("\nRELEASE:").append(Build.VERSION.RELEASE);
+        sb.append("\nSDK:").append(Build.VERSION.SDK_INT);
+        sb.append("\nEXCEPTION:").append(ex.getLocalizedMessage());
+        sb.append("\nSTACK_TRACE:").append(result);
+
+        try {
+            FileWriter writer = new FileWriter(getCrashFilePath(this.mContext) + now + ".txt");
+            writer.write(sb.toString());
+            writer.flush();
+            writer.close();
+        } catch (Exception var10) {
+            var10.printStackTrace();
+        }
+
     }
 }

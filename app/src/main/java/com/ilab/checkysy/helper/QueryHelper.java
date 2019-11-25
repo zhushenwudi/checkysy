@@ -1,6 +1,7 @@
 package com.ilab.checkysy.helper;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.os.AsyncTask;
 import android.os.Handler;
 import android.os.Message;
@@ -14,6 +15,7 @@ import com.ilab.checkysy.Constants;
 import com.ilab.checkysy.cloud.QueryPlayBackCloudListAsyncTask;
 import com.ilab.checkysy.cloud.QueryPlayBackListTaskCallback;
 import com.ilab.checkysy.entity.CloudPartInfoFileEx;
+import com.ilab.checkysy.util.Util;
 import com.videogo.openapi.EZOpenSDK;
 import com.videogo.openapi.bean.EZDeviceInfo;
 import com.videogo.openapi.bean.resp.CloudPartInfoFile;
@@ -27,7 +29,6 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 import static com.ilab.checkysy.Constants.QUERY_ING;
-import static com.ilab.checkysy.util.CrashHandler.restartApp;
 
 public class QueryHelper {
     private Timer timer;
@@ -36,13 +37,15 @@ public class QueryHelper {
     private String cameraSerial;
     private int currentIndex = 0;
     private int addCount = 0;
+    private Context context;
     private List<CloudPartInfoFile> cloudPartInfoFiles = new ArrayList<>();
     private SharedPreferencesUtils sp = App.getInstances().getSp();
     private String[] cameraSerials;
 
-    public QueryHelper(String cameraSerial, Handler mHandler) {
+    public QueryHelper(String cameraSerial, Handler mHandler, Context context) {
         this.cameraSerial = cameraSerial;
         this.mHandler = mHandler;
+        this.context = context;
     }
 
     public List<CloudPartInfoFile> getCloudPartInfoFiles() {
@@ -143,7 +146,7 @@ public class QueryHelper {
             try {
                 devices = EZOpenSDK.getInstance().getDeviceList(0, 1000);
             } catch (Exception e) {
-                restartApp(2000);
+                Util.restartApp(context, 2000);
                 e.printStackTrace();
             }
             Log.e("aaa", "-------查询摄像头完毕，共计====" + devices.size());

@@ -1,13 +1,20 @@
 package com.ilab.checkysy.util;
 
 import android.annotation.SuppressLint;
+import android.app.AlarmManager;
+import android.app.PendingIntent;
+import android.content.Context;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.media.ThumbnailUtils;
+import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Log;
 
 import com.ilab.checkysy.App;
 import com.ilab.checkysy.Constants;
+import com.ilab.checkysy.MainActivity;
+import com.ilab.checkysy.R;
 import com.ilab.checkysy.cloud.EZCloudRecordFile;
 import com.ilab.checkysy.database.ErrorFile;
 import com.ilab.checkysy.database.ErrorFileDao;
@@ -18,6 +25,8 @@ import com.videogo.openapi.bean.resp.CloudPartInfoFile;
 import com.videogo.util.Utils;
 
 import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,6 +35,7 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class Util {
@@ -242,27 +252,13 @@ public class Util {
         List<File> allFile = getDirAllFile(new File(dirPath));
         @SuppressLint("SimpleDateFormat")
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        //获取当前时间
-        //Date end = new Date(System.currentTimeMillis());
-        //try {
-        //    end = dateFormat.parse(dateFormat.format(new Date(System.currentTimeMillis())));
-        //} catch (Exception e) {
-        //    Log.d("aaa", "dataformat exeption e " + e.toString());
-        //}
-        //Log.d("aaa", "getNeedRemoveFile  dirPath = " + dirPath);
-        for (File file : allFile) {//ComDef
+        for (File file : allFile) {
             try {
                 //文件时间减去当前时间
                 Date start = dateFormat.parse(dateFormat.format(new Date(file.lastModified())));
                 if (btwTime >= start.getTime()) {
                     deleteFile(file);
                 }
-//                long diff = btwTime - start.getTime();//这样得到的差值是微秒级别
-//                long hour = diff / (1000 * 60 * 60);//1小时
-//                if (hour > btwTime) {
-//                    deleteFile(file);
-//                }
-
             } catch (Exception e) {
                 Log.d("aaa", "dataformat exeption e " + e.toString());
             }
@@ -329,5 +325,44 @@ public class Util {
         });
 
         return new ArrayList<>(Arrays.asList(files));
+    }
+
+    public static void restartApp(Context context, long delayTime) {
+        RxTimerUtil.getInstance().timer(delayTime, number -> {
+            Intent intent = new Intent(context, MainActivity.class);
+            PendingIntent restartIntent = PendingIntent.getActivity(context.getApplicationContext(), 0, intent, 0);
+            //退出程序
+            AlarmManager mgr = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+            mgr.set(AlarmManager.RTC, System.currentTimeMillis() + 1000, restartIntent); // 1秒钟后重启应用
+
+            //结束进程之前可以把你程序的注销或者退出代码放在这段代码之前
+            android.os.Process.killProcess(android.os.Process.myPid());
+        });
+    }
+
+    public static String writeToFile(Context context, String type, String text) {
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA);
+        String now = sdf.format(new Date());
+        String rtnPath = "";
+        try {
+            String dirName = Environment.getExternalStorageDirectory().getCanonicalPath() + "/" + context.getResources().getString(R.string.app_name) + "/Crash/" + now.split(" ")[0] + File.separator + type + File.separator;
+            String fileName = dirName + now.split(" ")[1] + ".txt";
+
+            File file = new File(dirName);
+            if (!file.exists()) {
+                file.mkdirs();
+            }
+
+            rtnPath = dirName;
+
+            FileWriter writer = new FileWriter(fileName);
+            writer.write(text);
+            writer.flush();
+            writer.close();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return rtnPath;
     }
 }
